@@ -4,9 +4,17 @@ import "leaflet/dist/leaflet.css"
 import { MapContainer, TileLayer, useMap, useMapEvents, Marker } from "react-leaflet"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Crosshair, Layers, Minus, Plus, Check } from "lucide-react"
+import { Crosshair, Layers, Minus, Plus, Check, MapPin } from "lucide-react"
 import L from "leaflet"
 import { useMapContext } from "@/lib/map-context"
+
+// Custom pin icon for dropped pins
+const createPinIcon = () => L.divIcon({
+  className: 'custom-pin-marker',
+  html: '<div style="width: 24px; height: 24px; background: #ef4444; border: 2px solid white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 2px 4px rgba(0,0,0,0.3); position: relative;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 8px; height: 8px; background: white; border-radius: 50%;"></div></div>',
+  iconSize: [24, 24],
+  iconAnchor: [12, 24]
+})
 
 // Available map layers
 const MAP_LAYERS = [
@@ -221,16 +229,102 @@ function LocationMarker({ isLocationActive, userLocation }: { isLocationActive: 
   )
 }
 
-function MapContextSetter() {
+function InteractiveMap({ droppedPin, onPinDrop, onPinClear }: { 
+  droppedPin: { id: string; lat: number; lng: number; label?: string } | null; 
+  onPinDrop: (lat: number, lng: number) => void;
+  onPinClear: () => void;
+}) {
   const map = useMap()
   const { setMap } = useMapContext()
+  const [isDragging, setIsDragging] = useState(false)
+  const [showDragIndicator, setShowDragIndicator] = useState(false)
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null)
 
   useEffect(() => {
     setMap(map)
+    // Disable default dragging behavior
+    map.dragging.disable()
     return () => setMap(null)
   }, [map, setMap])
 
-  return null
+  // Handle map events for interactive features
+  useMapEvents({
+    mousedown(e: any) {
+      if (e.originalEvent.shiftKey) {
+        // Start custom dragging
+        setIsDragging(true)
+        setShowDragIndicator(true)
+        setDragStart({
+          x: e.originalEvent.clientX,
+          y: e.originalEvent.clientY,
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        })
+        e.originalEvent.preventDefault()
+      }
+    },
+    mousemove(e: any) {
+      if (isDragging && dragStart) {
+        // Calculate the movement
+        const deltaX = e.originalEvent.clientX - dragStart.x
+        const deltaY = e.originalEvent.clientY - dragStart.y
+        
+        // Convert pixel movement to lat/lng movement
+        const point = map.latLngToContainerPoint([dragStart.lat, dragStart.lng])
+        const newPoint = point.add([deltaX, deltaY])
+        const newLatLng = map.containerPointToLatLng(newPoint)
+        
+        // Move the map
+        map.setView([newLatLng.lat, newLatLng.lng], map.getZoom(), { animate: false })
+      }
+    },
+    mouseup(e: any) {
+      if (isDragging) {
+        setIsDragging(false)
+        setShowDragIndicator(false)
+        setDragStart(null)
+      } else if (!e.originalEvent.shiftKey) {
+        // Normal click - drop a pin
+        const { lat, lng } = e.latlng
+        onPinDrop(lat, lng)
+      }
+    },
+    keydown(e: any) {
+      if (e.originalEvent.key === 'Shift') {
+        setShowDragIndicator(true)
+      }
+    },
+    keyup(e: any) {
+      if (e.originalEvent.key === 'Shift') {
+        setShowDragIndicator(false)
+        setIsDragging(false)
+        setDragStart(null)
+      }
+      if (e.originalEvent.key === 'Escape') {
+        onPinClear()
+      }
+    }
+  })
+
+  // Render dropped pin and drag indicator
+  return (
+    <>
+      {droppedPin && (
+        <Marker
+          key={droppedPin.id}
+          position={[droppedPin.lat, droppedPin.lng]}
+          icon={createPinIcon()}
+        />
+      )}
+      
+      {/* Drag indicator */}
+      {showDragIndicator && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[2000] bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
+          Hold Shift + Click to drag map
+        </div>
+      )}
+    </>
+  )
 }
 
 function Geolocate({ onLocationFound }: { onLocationFound: (latlng: [number, number]) => void }) {
@@ -254,6 +348,7 @@ export default function MapView() {
   const [currentLayer, setCurrentLayer] = useState("streets")
   const [isLocationActive, setIsLocationActive] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const { droppedPin, setDroppedPin, clearPin } = useMapContext()
 
   const currentLayerData = MAP_LAYERS.find(l => l.id === currentLayer)
 
@@ -268,14 +363,31 @@ export default function MapView() {
     }
   }
 
+  const handlePinDrop = (lat: number, lng: number) => {
+    const newPin = {
+      id: `pin-${Date.now()}`,
+      lat,
+      lng,
+      label: `Dropped Pin`
+    }
+    setDroppedPin(newPin)
+  }
+
   return (
     <div className="h-full w-full">
-       <MapContainer center={center} zoom={12} className="h-full w-full" zoomControl={false} attributionControl={false}>
+      <MapContainer 
+        center={center} 
+        zoom={12} 
+        className="h-full w-full" 
+        zoomControl={false} 
+        attributionControl={false}
+        dragging={false}
+      >
         <TileLayer
           url={currentLayerData?.url || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
-           attribution={currentLayerData?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+          attribution={currentLayerData?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
         />
-        <MapContextSetter />
+        <InteractiveMap droppedPin={droppedPin} onPinDrop={handlePinDrop} onPinClear={clearPin} />
         <Geolocate onLocationFound={handleLocationFound} />
         <LocationMarker isLocationActive={isLocationActive} userLocation={userLocation} />
         <ZoomControls isLocationActive={isLocationActive} onLocationToggle={handleLocationToggle} />

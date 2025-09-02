@@ -22,7 +22,7 @@ export function TopSearch() {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const { flyToLocation } = useMapContext()
+  const { flyToLocation, droppedPin, clearPin } = useMapContext()
 
   useEffect(() => {
     try {
@@ -47,6 +47,13 @@ export function TopSearch() {
     setRecents(next)
     persist(next)
   }
+
+  // Update search value when pin is dropped
+  useEffect(() => {
+    if (droppedPin) {
+      setValue(`${droppedPin.lat.toFixed(6)}, ${droppedPin.lng.toFixed(6)}`)
+    }
+  }, [droppedPin])
 
   // Handle search input changes with suggestions
   useEffect(() => {
@@ -124,8 +131,13 @@ export function TopSearch() {
             }}
             className="h-11 flex-1 rounded-full border-0 bg-secondary px-4 text-base"
           />
-          <Button size="icon" className="h-11 w-11 rounded-full" aria-label="Search" onClick={submitSearch}>
-            <Search className="h-5 w-5" />
+          <Button 
+            size="icon" 
+            className="h-11 w-11 rounded-full" 
+            aria-label={droppedPin ? "Clear pin" : "Search"} 
+            onClick={droppedPin ? clearPin : submitSearch}
+          >
+            {droppedPin ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
         </div>
 
