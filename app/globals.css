@@ -132,3 +132,8 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.custom-location-marker {
+  background: transparent !important;
+  border: none !important;
+}

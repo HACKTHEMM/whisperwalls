@@ -1,0 +1,36 @@
+"use client"
+
+import React, { createContext, useContext, useState, ReactNode } from 'react'
+import { Map } from 'leaflet'
+
+interface MapContextType {
+  map: Map | null
+  setMap: (map: Map | null) => void
+  flyToLocation: (lat: number, lng: number, zoom?: number) => void
+}
+
+const MapContext = createContext<MapContextType | undefined>(undefined)
+
+export function MapProvider({ children }: { children: ReactNode }) {
+  const [map, setMap] = useState<Map | null>(null)
+
+  const flyToLocation = (lat: number, lng: number, zoom: number = 15) => {
+    if (map) {
+      map.flyTo([lat, lng], zoom, { duration: 1 })
+    }
+  }
+
+  return (
+    <MapContext.Provider value={{ map, setMap, flyToLocation }}>
+      {children}
+    </MapContext.Provider>
+  )
+}
+
+export function useMapContext() {
+  const context = useContext(MapContext)
+  if (context === undefined) {
+    throw new Error('useMapContext must be used within a MapProvider')
+  }
+  return context
+}

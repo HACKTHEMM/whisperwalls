@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Search, Clock, X } from "lucide-react"
+import { Search, Clock, X, MapPin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MobileMenu } from "./mobile-menu"
+import { searchService, SearchResult, SearchSuggestion } from "@/lib/search-service"
+import { useMapContext } from "@/lib/map-context"
 
 type RecentItem = { label: string; sublabel?: string }
 
@@ -16,7 +18,11 @@ export function TopSearch() {
   const [value, setValue] = useState("")
   const [open, setOpen] = useState(false)
   const [recents, setRecents] = useState<RecentItem[]>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const { flyToLocation } = useMapContext()
 
   useEffect(() => {
     try {
@@ -42,9 +48,43 @@ export function TopSearch() {
     persist(next)
   }
 
-  function submitSearch() {
-    addRecent(value)
-    // You could trigger a real search here
+  // Handle search input changes with suggestions
+  useEffect(() => {
+    if (value.trim()) {
+      setIsSearching(true)
+      searchService.getSuggestions(value).then((results) => {
+        setSuggestions(results)
+        setIsSearching(false)
+      })
+    } else {
+      setSuggestions([])
+      setIsSearching(false)
+    }
+  }, [value])
+
+  async function submitSearch() {
+    if (!value.trim()) return
+    
+    setIsSearching(true)
+    const results = await searchService.searchLocations(value)
+    setSearchResults(results)
+    setIsSearching(false)
+    
+    if (results.length > 0) {
+      const firstResult = results[0]
+      flyToLocation(firstResult.lat, firstResult.lon)
+      addRecent(`${firstResult.name}, ${firstResult.display_name.split(',').slice(-2).join(',')}`)
+    } else {
+      addRecent(value)
+    }
+    
+    setOpen(false)
+  }
+
+  function handleLocationSelect(result: SearchResult) {
+    flyToLocation(result.lat, result.lon)
+    addRecent(`${result.name}, ${result.display_name.split(',').slice(-2).join(',')}`)
+    setValue(result.name)
     setOpen(false)
   }
 
@@ -104,30 +144,64 @@ export function TopSearch() {
                 e.preventDefault()
               }}
               role="listbox"
-              aria-label="Recent searches"
+              aria-label="Search results"
             >
-              {recents.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">No recent searches yet.</div>
+              {isSearching ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground text-center">Searching...</div>
+              ) : value.trim() ? (
+                // Show search suggestions when typing
+                <div className="max-h-[50vh] overflow-auto">
+                  {suggestions.length > 0 ? (
+                    <ul>
+                      {suggestions.map((suggestion) => (
+                        <li key={suggestion.id}>
+                          <button
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
+                            onClick={() => {
+                              setValue(suggestion.name)
+                              setOpen(false)
+                            }}
+                          >
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">{suggestion.name}</div>
+                              <div className="truncate text-xs text-muted-foreground">{suggestion.display_name}</div>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No suggestions found.</div>
+                  )}
+                </div>
               ) : (
-                <ul className="max-h-[50vh] overflow-auto">
-                  {recents.slice(0, 4).map((r, i) => (
-                    <li key={i}>
-                      <button
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
-                        onClick={() => {
-                          setValue(r.label)
-                          setOpen(false)
-                        }}
-                      >
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{r.label}</div>
-                          {r.sublabel && <div className="truncate text-xs text-muted-foreground">{r.sublabel}</div>}
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                // Show recent searches when not typing
+                <div className="max-h-[50vh] overflow-auto">
+                  {recents.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">No recent searches yet.</div>
+                  ) : (
+                    <ul>
+                      {recents.slice(0, 4).map((r, i) => (
+                        <li key={i}>
+                          <button
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
+                            onClick={() => {
+                              setValue(r.label)
+                              setOpen(false)
+                            }}
+                          >
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">{r.label}</div>
+                              {r.sublabel && <div className="truncate text-xs text-muted-foreground">{r.sublabel}</div>}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
 
               <div className="mt-1 flex items-center justify-between px-2">
