@@ -4,25 +4,31 @@ import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Search, Clock, X, MapPin } from "lucide-react"
+import { Menu, Search, Clock, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { MobileMenu } from "./mobile-menu"
-import { searchService, SearchResult, SearchSuggestion } from "@/lib/search-service"
-import { useMapContext } from "@/lib/map-context"
 
 type RecentItem = { label: string; sublabel?: string }
 
 const STORAGE_KEY = "recent-searches"
 
-export function TopSearch() {
+interface TopSearchProps {
+  pinCoordinates?: [number, number] | null
+  onClearPin?: () => void
+}
+
+export function TopSearch({ pinCoordinates, onClearPin }: TopSearchProps) {
   const [value, setValue] = useState("")
   const [open, setOpen] = useState(false)
   const [recents, setRecents] = useState<RecentItem[]>([])
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
-  const [isSearching, setIsSearching] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const { flyToLocation, droppedPin, clearPin } = useMapContext()
+
+  useEffect(() => {
+    if (pinCoordinates) {
+      const [lng, lat] = pinCoordinates
+      setValue(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)
+      setOpen(false)
+    }
+  }, [pinCoordinates])
 
   useEffect(() => {
     try {
@@ -48,51 +54,16 @@ export function TopSearch() {
     persist(next)
   }
 
-  // Update search value when pin is dropped
-  useEffect(() => {
-    if (droppedPin) {
-      setValue(`${droppedPin.lat.toFixed(6)}, ${droppedPin.lng.toFixed(6)}`)
-    }
-  }, [droppedPin])
-
-  // Handle search input changes with suggestions
-  useEffect(() => {
-    if (value.trim()) {
-      setIsSearching(true)
-      searchService.getSuggestions(value).then((results) => {
-        setSuggestions(results)
-        setIsSearching(false)
-      })
+  function submitSearch() {
+    if (pinCoordinates && onClearPin) {
+      // If showing coordinates, clear the pin
+      onClearPin()
+      setValue("")
     } else {
-      setSuggestions([])
-      setIsSearching(false)
-    }
-  }, [value])
-
-  async function submitSearch() {
-    if (!value.trim()) return
-    
-    setIsSearching(true)
-    const results = await searchService.searchLocations(value)
-    setSearchResults(results)
-    setIsSearching(false)
-    
-    if (results.length > 0) {
-      const firstResult = results[0]
-      flyToLocation(firstResult.lat, firstResult.lon)
-      addRecent(`${firstResult.name}, ${firstResult.display_name.split(',').slice(-2).join(',')}`)
-    } else {
+      // Normal search
       addRecent(value)
+      setOpen(false)
     }
-    
-    setOpen(false)
-  }
-
-  function handleLocationSelect(result: SearchResult) {
-    flyToLocation(result.lat, result.lon)
-    addRecent(`${result.name}, ${result.display_name.split(',').slice(-2).join(',')}`)
-    setValue(result.name)
-    setOpen(false)
   }
 
   // Close on outside click
@@ -107,120 +78,81 @@ export function TopSearch() {
 
   return (
     <div className="pointer-events-auto">
-      {/* relative container so dropdown can be positioned under the search bar, right-aligned on md+ */}
-      <div ref={wrapperRef} className="relative md:w-[min(640px,92vw)]">
+      <div ref={wrapperRef} className="relative w-full md:w-[min(640px,92vw)]">
         <div className="flex w-full items-center gap-2 rounded-full bg-background/95 p-1 pl-2 pr-1 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <div className="md:hidden">
-            <Button size="icon" variant="ghost" aria-label="Open menu" className="rounded-full">
-              <MobileMenu />
-            </Button>
-          </div>
+          <Button size="icon" variant="ghost" aria-label="Open menu" className="rounded-full">
+            <Menu className="h-5 w-5" />
+          </Button>
           <Input
-            placeholder="Search Maps"
+            placeholder={pinCoordinates ? "Coordinates" : "Search Maps"}
             aria-label="Search"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            onFocus={() => setOpen(true)}
+            onFocus={() => !pinCoordinates && setOpen(true)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault()
                 submitSearch()
               } else if (e.key === "Escape") {
-                setOpen(false)
+                if (pinCoordinates && onClearPin) {
+                  onClearPin()
+                  setValue("")
+                } else {
+                  setOpen(false)
+                }
               }
             }}
             className="h-11 flex-1 rounded-full border-0 bg-secondary px-4 text-base"
+            readOnly={!!pinCoordinates}
           />
-          <Button 
-            size="icon" 
-            className="h-11 w-11 rounded-full" 
-            aria-label={droppedPin ? "Clear pin" : "Search"} 
-            onClick={droppedPin ? clearPin : submitSearch}
+          <Button
+            size="icon"
+            className="h-11 w-11 rounded-full"
+            aria-label={pinCoordinates ? "Clear pin" : "Search"}
+            onClick={submitSearch}
           >
-            {droppedPin ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+            {pinCoordinates ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
           </Button>
         </div>
 
-        {open && (
-          <div
-            className={cn(
-              "absolute z-[1100] mt-2 w-full",
-              // On md+, keep the dropdown the same width as the input (already constrained by parent)
-              "md:w-[min(640px,92vw)]",
-            )}
-          >
+        {open && !pinCoordinates && (
+          <div className={cn("absolute z-[1100] mt-2 w-full", "md:w-[min(640px,92vw)]")}>
             <Card
               className="rounded-2xl border bg-background/95 p-2 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/70"
               onMouseDown={(e) => {
-                // prevent input blur collapse when clicking inside dropdown
                 e.preventDefault()
               }}
               role="listbox"
-              aria-label="Search results"
+              aria-label="Recent searches"
             >
-              {isSearching ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground text-center">Searching...</div>
-              ) : value.trim() ? (
-                // Show search suggestions when typing
-                <div className="max-h-[50vh] overflow-auto">
-                  {suggestions.length > 0 ? (
-                    <ul>
-                      {suggestions.map((suggestion) => (
-                        <li key={suggestion.id}>
-                          <button
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
-                            onClick={() => {
-                              setValue(suggestion.name)
-                              setOpen(false)
-                            }}
-                          >
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">{suggestion.name}</div>
-                              <div className="truncate text-xs text-muted-foreground">{suggestion.display_name}</div>
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No suggestions found.</div>
-                  )}
-                </div>
+              {recents.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No recent searches yet.</div>
               ) : (
-                // Show recent searches when not typing
-                <div className="max-h-[50vh] overflow-auto">
-                  {recents.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">No recent searches yet.</div>
-                  ) : (
-                    <ul>
-                      {recents.slice(0, 4).map((r, i) => (
-                        <li key={i}>
-                          <button
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
-                            onClick={() => {
-                              setValue(r.label)
-                              setOpen(false)
-                            }}
-                          >
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">{r.label}</div>
-                              {r.sublabel && <div className="truncate text-xs text-muted-foreground">{r.sublabel}</div>}
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <ul className="max-h-[50vh] overflow-auto">
+                  {recents.slice(0, 4).map((r, i) => (
+                    <li key={i}>
+                      <button
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-muted"
+                        onClick={() => {
+                          setValue(r.label)
+                          setOpen(false)
+                        }}
+                      >
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{r.label}</div>
+                          {r.sublabel && <div className="truncate text-xs text-muted-foreground">{r.sublabel}</div>}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
 
               <div className="mt-1 flex items-center justify-between px-2">
                 <button
                   className="rounded-md px-2 py-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
                   onClick={() => {
-                    // Placeholder for full history view
                     setOpen(false)
                   }}
                 >

@@ -1,87 +1,29 @@
 "use client"
 
-import "leaflet/dist/leaflet.css"
-import { MapContainer, TileLayer, useMap, useMapEvents, Marker } from "react-leaflet"
-import { useState, useEffect } from "react"
+import { useRef, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Crosshair, Layers, Minus, Plus, Check, MapPin } from "lucide-react"
-import L from "leaflet"
-import { useMapContext } from "@/lib/map-context"
+import { Crosshair, Minus, Plus } from "lucide-react"
+import LayersMiniCard from "@/components/layersminicard"
 
-// Custom pin icon for dropped pins
-const createPinIcon = () => L.divIcon({
-  className: 'custom-pin-marker',
-  html: '<div style="width: 24px; height: 24px; background: #ef4444; border: 2px solid white; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 2px 4px rgba(0,0,0,0.3); position: relative;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg); width: 8px; height: 8px; background: white; border-radius: 50%;"></div></div>',
-  iconSize: [24, 24],
-  iconAnchor: [12, 24]
-})
-
-// Available map layers
-const MAP_LAYERS = [
-  {
-    id: "streets",
-    name: "Streets",
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    available: true,
-    thumbnail: "/streetview.jpg?height=56&width=80&query=streets"
-  },
-  {
-    id: "satellite",
-    name: "Satellite",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
-    available: true,
-    thumbnail: "/satelliteview.jpeg?height=56&width=80&query=satellite"
-  },
-  {
-    id: "terrain",
-    name: "Terrain",
-    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a>',
-    available: true,
-    thumbnail: "/terrainview.png?height=56&width=80&query=terrain"
-  },
-  {
-    id: "dark",
-    name: "Dark",
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    available: true,
-    thumbnail: "/darkview.jpeg?height=56&width=80&query=dark"
+declare global {
+  interface Window {
+    mapboxgl: any
   }
-  // {
-  //   id: "urban",
-  //   name: "Urban",
-  //   url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  //   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  //   available: false, // This layer is not available
-  //   thumbnail: "/placeholder.svg?height=56&width=80&query=urban"
-  // }
-]
+}
 
-function ZoomControls({ isLocationActive, onLocationToggle }: { isLocationActive: boolean; onLocationToggle: (active: boolean) => void }) {
-  const map = useMap()
-  
-  const handleLocationClick = () => {
-    if (isLocationActive) {
-      // Turn off location tracking
-      onLocationToggle(false)
-      map.stopLocate()
-    } else {
-      // Turn on location tracking
-      onLocationToggle(true)
-      map.locate({ setView: true, maxZoom: 16 })
-    }
-  }
+interface PinState {
+  coordinates: [number, number]
+  marker?: any
+}
 
+function ZoomControls({ map }: { map: any | null }) {
   return (
     <div className="absolute right-4 bottom-28 z-[500] flex flex-col gap-2">
       <Button
         size="icon"
         variant="secondary"
         aria-label="Zoom in"
-        onClick={() => map.zoomIn()}
+        onClick={() => map?.zoomIn()}
         className="h-10 w-10 rounded-lg shadow-md"
       >
         <Plus className="h-5 w-5" />
@@ -90,310 +32,201 @@ function ZoomControls({ isLocationActive, onLocationToggle }: { isLocationActive
         size="icon"
         variant="secondary"
         aria-label="Zoom out"
-        onClick={() => map.zoomOut()}
+        onClick={() => map?.zoomOut()}
         className="h-10 w-10 rounded-lg shadow-md"
       >
         <Minus className="h-5 w-5" />
       </Button>
       <Button
         size="icon"
-        variant={isLocationActive ? "default" : "secondary"}
+        variant="secondary"
         aria-label="Locate me"
-        onClick={handleLocationClick}
-        className={`h-10 w-10 rounded-lg shadow-md ${isLocationActive ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+        onClick={() => {
+          if (navigator.geolocation && map) {
+            navigator.geolocation.getCurrentPosition((position) => {
+              map.flyTo({
+                center: [position.coords.longitude, position.coords.latitude],
+                zoom: Math.max(map.getZoom(), 15),
+              })
+            })
+          }
+        }}
+        className="h-10 w-10 rounded-lg shadow-md"
       >
-        <Crosshair className={`h-5 w-5 ${isLocationActive ? 'text-white' : ''}`} />
+        <Crosshair className="h-5 w-5" />
       </Button>
     </div>
   )
 }
 
-function LayerChanger({ currentLayer, onLayerChange }: { currentLayer: string; onLayerChange: (layerId: string) => void }) {
-  const map = useMap()
-  
-  const changeLayer = (layerId: string) => {
-    const layer = MAP_LAYERS.find(l => l.id === layerId)
-    if (layer && layer.available) {
-      onLayerChange(layerId)
-      // Force map to refresh tiles
-      map.invalidateSize()
-    }
-  }
-
-  return null
+interface MapViewProps {
+  onPinChange?: (pin: PinState | null) => void
+  onMapReady?: (map: any) => void
+  mapStyle?: string
 }
 
-function LayersMiniCard({ currentLayer, onLayerChange }: { currentLayer: string; onLayerChange: (layerId: string) => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const currentLayerData = MAP_LAYERS.find(l => l.id === currentLayer)
+export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v12" }: MapViewProps) {
+  const mapContainer = useRef<HTMLDivElement>(null)
+  const map = useRef<any>(null)
+  const [mapInstance, setMapInstance] = useState<any>(null)
+  const [mapboxLoaded, setMapboxLoaded] = useState(false)
+  const [tokenError, setTokenError] = useState<string | null>(null)
+  const [currentPin, setCurrentPin] = useState<PinState | null>(null)
 
-  // Close menu when clicking outside
+  const [lng] = useState(73.7125)
+  const [lat] = useState(24.5854)
+  const [zoom] = useState(12)
+
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Element
-      if (isOpen && !target.closest('.layers-menu')) {
-        setIsOpen(false)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && currentPin) {
+        removePin()
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [currentPin])
+
+  const removePin = () => {
+    if (currentPin?.marker) {
+      currentPin.marker.remove()
     }
-  }, [isOpen])
+    setCurrentPin(null)
+    onPinChange?.(null)
+  }
 
-  return (
-    <div className="absolute left-4 bottom-4 z-[1000] md:left-24">
-      <div className="relative layers-menu">
-        <div className="flex items-center gap-2 rounded-xl bg-background/90 p-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <div className="h-14 w-20 overflow-hidden rounded-lg bg-muted">
-            <img
-              src={currentLayerData?.thumbnail || "/placeholder.svg?height=56&width=80&query=map%20thumbnail"}
-              alt="Layer preview"
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <Button 
-            variant="secondary" 
-            className="gap-2"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            <Layers className="h-4 w-4" />
-            Layers
-          </Button>
+  const addPin = (coordinates: [number, number]) => {
+    if (!map.current || !window.mapboxgl) return
+
+    // Remove existing pin
+    if (currentPin?.marker) {
+      currentPin.marker.remove()
+    }
+
+    // Create new marker
+    const marker = new window.mapboxgl.Marker({
+      color: "#ef4444", // red color
+      draggable: false,
+    })
+      .setLngLat(coordinates)
+      .addTo(map.current)
+
+    const newPin = { coordinates, marker }
+    setCurrentPin(newPin)
+    onPinChange?.(newPin)
+  }
+
+  useEffect(() => {
+    const loadMapbox = async () => {
+      if (window.mapboxgl) {
+        setMapboxLoaded(true)
+        return
+      }
+
+      // Load CSS
+      const cssLink = document.createElement("link")
+      cssLink.rel = "stylesheet"
+      cssLink.href = "https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css"
+      document.head.appendChild(cssLink)
+
+      // Load JS
+      const script = document.createElement("script")
+      script.src = "https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"
+      script.onload = () => {
+        setMapboxLoaded(true)
+      }
+      document.head.appendChild(script)
+    }
+
+    loadMapbox()
+  }, [])
+
+  useEffect(() => {
+    if (!mapboxLoaded || map.current || !mapContainer.current) return
+
+    const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+
+    if (!token) {
+      setTokenError(
+        "Mapbox access token is missing. Please add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to your environment variables.",
+      )
+      return
+    }
+
+    window.mapboxgl.accessToken = token
+
+    try {
+      map.current = new window.mapboxgl.Map({
+        container: mapContainer.current,
+        style: `mapbox://styles/mapbox/${mapStyle}`,
+        center: [lng, lat],
+        zoom: zoom,
+        attributionControl: false,
+      })
+
+      map.current.on("click", (e: any) => {
+        const coordinates: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+        addPin(coordinates)
+      })
+
+      setMapInstance(map.current)
+      onMapReady?.(map.current)
+    } catch (error) {
+      console.error("[v0] Mapbox initialization error:", error)
+      setTokenError("Failed to initialize Mapbox. Please check your access token.")
+    }
+
+    return () => {
+      if (map.current) {
+        map.current.remove()
+      }
+    }
+  }, [mapboxLoaded, lng, lat, zoom, mapStyle, onMapReady])
+
+  useEffect(() => {
+    if (!onPinChange) return
+
+    // If parent cleared the pin, remove the marker
+    const handlePinClear = () => {
+      if (currentPin?.marker) {
+        currentPin.marker.remove()
+        setCurrentPin(null)
+      }
+    }
+
+    // Listen for external pin clearing
+    if (!currentPin && onPinChange(null)) {
+      handlePinClear()
+    }
+  }, [currentPin, onPinChange])
+
+  if (tokenError) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-muted">
+        <div className="text-center p-8 max-w-md">
+          <h3 className="text-lg font-semibold mb-2">Mapbox Configuration Required</h3>
+          <p className="text-muted-foreground mb-4">{tokenError}</p>
+          <p className="text-sm text-muted-foreground">
+            Add your Mapbox access token in Project Settings → Environment Variables
+          </p>
         </div>
-
-        {isOpen && (
-          <div 
-            className="layers-menu absolute bottom-full left-0 mb-2 w-64 rounded-xl bg-background/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/70"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-2 text-sm font-medium text-foreground">Map Layers</div>
-            <div className="space-y-2">
-              {MAP_LAYERS.map((layer) => (
-                <button
-                  key={layer.id}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (layer.available) {
-                      onLayerChange(layer.id)
-                      setIsOpen(false)
-                    }
-                  }}
-                  disabled={!layer.available}
-                  className={`flex w-full items-center justify-between rounded-lg p-2 text-left transition-colors ${
-                    layer.available 
-                      ? 'hover:bg-muted' 
-                      : 'opacity-50 cursor-not-allowed'
-                  } ${currentLayer === layer.id ? 'bg-muted' : ''}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 overflow-hidden rounded bg-muted">
-                      <img
-                        src={layer.thumbnail}
-                        alt={layer.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <span className="text-sm">{layer.name}</span>
-                  </div>
-                  {currentLayer === layer.id && layer.available && (
-                    <Check className="h-4 w-4 text-primary" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
-    </div>
-  )
-}
-
-function LocationMarker({ isLocationActive, userLocation }: { isLocationActive: boolean; userLocation: [number, number] | null }) {
-  if (!isLocationActive || !userLocation) return null
-
-  // Create a custom blue circle icon
-  const blueCircleIcon = L.divIcon({
-    className: 'custom-location-marker',
-    html: '<div style="width: 20px; height: 20px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  })
-
-  return (
-    <Marker 
-      position={userLocation} 
-      icon={blueCircleIcon}
-    />
-  )
-}
-
-function InteractiveMap({ droppedPin, onPinDrop, onPinClear }: { 
-  droppedPin: { id: string; lat: number; lng: number; label?: string } | null; 
-  onPinDrop: (lat: number, lng: number) => void;
-  onPinClear: () => void;
-}) {
-  const map = useMap()
-  const { setMap } = useMapContext()
-  const [isDragging, setIsDragging] = useState(false)
-  const [showDragIndicator, setShowDragIndicator] = useState(false)
-  const [dragStart, setDragStart] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null)
-
-  useEffect(() => {
-    setMap(map)
-    // Disable default dragging behavior
-    map.dragging.disable()
-    return () => setMap(null)
-  }, [map, setMap])
-
-  // Handle map events for interactive features
-  useMapEvents({
-    mousedown(e: any) {
-      if (e.originalEvent.shiftKey) {
-        // Start custom dragging
-        setIsDragging(true)
-        setShowDragIndicator(true)
-        setDragStart({
-          x: e.originalEvent.clientX,
-          y: e.originalEvent.clientY,
-          lat: e.latlng.lat,
-          lng: e.latlng.lng
-        })
-        e.originalEvent.preventDefault()
-      }
-    },
-    mousemove(e: any) {
-      if (isDragging && dragStart) {
-        // Calculate the movement
-        const deltaX = e.originalEvent.clientX - dragStart.x
-        const deltaY = e.originalEvent.clientY - dragStart.y
-        
-        // Convert pixel movement to lat/lng movement
-        const point = map.latLngToContainerPoint([dragStart.lat, dragStart.lng])
-        const newPoint = point.add([deltaX, deltaY])
-        const newLatLng = map.containerPointToLatLng(newPoint)
-        
-        // Move the map
-        map.setView([newLatLng.lat, newLatLng.lng], map.getZoom(), { animate: false })
-      }
-    },
-    mouseup(e: any) {
-      if (isDragging) {
-        setIsDragging(false)
-        setShowDragIndicator(false)
-        setDragStart(null)
-      } else if (!e.originalEvent.shiftKey) {
-        // Normal click - drop a pin
-        const { lat, lng } = e.latlng
-        onPinDrop(lat, lng)
-      }
-    },
-    keydown(e: any) {
-      if (e.originalEvent.key === 'Shift') {
-        setShowDragIndicator(true)
-      }
-    },
-    keyup(e: any) {
-      if (e.originalEvent.key === 'Shift') {
-        setShowDragIndicator(false)
-        setIsDragging(false)
-        setDragStart(null)
-      }
-      if (e.originalEvent.key === 'Escape') {
-        onPinClear()
-      }
-    }
-  })
-
-  // Render dropped pin and drag indicator
-  return (
-    <>
-      {droppedPin && (
-        <Marker
-          key={droppedPin.id}
-          position={[droppedPin.lat, droppedPin.lng]}
-          icon={createPinIcon()}
-        />
-      )}
-      
-      {/* Drag indicator */}
-      {showDragIndicator && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[2000] bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-          Hold Shift + Click to drag map
-        </div>
-      )}
-    </>
-  )
-}
-
-function Geolocate({ onLocationFound }: { onLocationFound: (latlng: [number, number]) => void }) {
-  const map = useMap()
-  useMapEvents({
-    locationfound(e: any) {
-      onLocationFound([e.latlng.lat, e.latlng.lng])
-      map.flyTo(e.latlng, Math.max(map.getZoom(), 15), { duration: 0.75 })
-    },
-    locationerror() {
-      // Handle location error
-      console.log('Location access denied or error occurred')
-    }
-  })
-  return null
-}
-
-export default function MapView() {
-  // Center near Udaipur as in the reference screenshot
-  const [center] = useState<[number, number]>([24.5854, 73.7125])
-  const [currentLayer, setCurrentLayer] = useState("streets")
-  const [isLocationActive, setIsLocationActive] = useState(false)
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
-  const { droppedPin, setDroppedPin, clearPin } = useMapContext()
-
-  const currentLayerData = MAP_LAYERS.find(l => l.id === currentLayer)
-
-  const handleLocationFound = (latlng: [number, number]) => {
-    setUserLocation(latlng)
-  }
-
-  const handleLocationToggle = (active: boolean) => {
-    setIsLocationActive(active)
-    if (!active) {
-      setUserLocation(null)
-    }
-  }
-
-  const handlePinDrop = (lat: number, lng: number) => {
-    const newPin = {
-      id: `pin-${Date.now()}`,
-      lat,
-      lng,
-      label: `Dropped Pin`
-    }
-    setDroppedPin(newPin)
+    )
   }
 
   return (
     <div className="h-full w-full">
-      <MapContainer 
-        center={center} 
-        zoom={12} 
-        className="h-full w-full" 
-        zoomControl={false} 
-        attributionControl={false}
-        dragging={false}
-      >
-        <TileLayer
-          url={currentLayerData?.url || "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"}
-          attribution={currentLayerData?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
-        />
-        <InteractiveMap droppedPin={droppedPin} onPinDrop={handlePinDrop} onPinClear={clearPin} />
-        <Geolocate onLocationFound={handleLocationFound} />
-        <LocationMarker isLocationActive={isLocationActive} userLocation={userLocation} />
-        <ZoomControls isLocationActive={isLocationActive} onLocationToggle={handleLocationToggle} />
-        <LayerChanger currentLayer={currentLayer} onLayerChange={setCurrentLayer} />
-        <LayersMiniCard currentLayer={currentLayer} onLayerChange={setCurrentLayer} />
-      </MapContainer>
+      <div ref={mapContainer} className="h-full w-full" />
+      {mapInstance && <ZoomControls map={mapInstance} />}
+      <LayersMiniCard
+        onStyleChange={(styleId: any) => {
+          if (mapInstance) {
+            mapInstance.setStyle(`mapbox://styles/mapbox/${styleId}`)
+          }
+        }}
+        currentStyle={mapStyle}
+      />
     </div>
   )
 }
