@@ -50,7 +50,7 @@ export default function SavedNotesPanel({ open, onClose, onSelect }: SavedNotesP
 	const entries = useMemo(() => Object.entries(notes), [notes])
 
 	return (
-		<div className={`pointer-events-none fixed left-1/2 top-4 z-[1200] h-[calc(100vh-2rem)] w-[min(360px,92vw)] -translate-x-1/2 transition-transform duration-200 md:left-24 ${open ? "md:translate-x-0" : "md:-translate-x-[120%]"}`}>
+		<div className={`pointer-events-none fixed left-1/2 top-4 z-[1200] h-[calc(100vh-2rem)] w-[min(360px,92vw)] -translate-x-1/2 transition-transform duration-200 md:left-24 ${open ? "block md:translate-x-0" : "hidden md:block md:-translate-x-[120%]"}`}>
 			<div className="pointer-events-auto h-full pr-4">
 				<Card className="h-full w-full rounded-2xl border bg-background/95 p-3 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/70">
 					<div className="mb-2 flex items-center justify-between">
