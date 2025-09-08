@@ -36,7 +36,12 @@ export default function Page() {
       {/* Map canvas */}
       <div className="fixed inset-0 z-0">
         <Suspense fallback={<div className="h-full w-full bg-muted" />}>
-          <MapView onPinChange={setCurrentPin} onMapReady={setMapInstance} mapStyle={mapStyle} />
+          <MapView
+            onPinChange={setCurrentPin}
+            onMapReady={setMapInstance}
+            mapStyle={mapStyle}
+            externalPinCoordinates={currentPin?.coordinates ?? null}
+          />
         </Suspense>
       </div>
 

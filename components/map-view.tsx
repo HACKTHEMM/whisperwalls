@@ -63,11 +63,13 @@ interface MapViewProps {
   onPinChange?: (pin: PinState | null) => void
   onMapReady?: (map: any) => void
   mapStyle?: string
+  externalPinCoordinates?: [number, number] | null
 }
 
-export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v12" }: MapViewProps) {
+export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v12", externalPinCoordinates }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<any>(null)
+  const markerRef = useRef<any | null>(null)
   const [mapInstance, setMapInstance] = useState<any>(null)
   const [mapboxLoaded, setMapboxLoaded] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
@@ -89,8 +91,9 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   }, [currentPin])
 
   const removePin = () => {
-    if (currentPin?.marker) {
-      currentPin.marker.remove()
+    if (markerRef.current) {
+      markerRef.current.remove()
+      markerRef.current = null
     }
     setCurrentPin(null)
     onPinChange?.(null)
@@ -99,9 +102,10 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   const addPin = (coordinates: [number, number]) => {
     if (!map.current || !window.mapboxgl) return
 
-    // Remove existing pin
-    if (currentPin?.marker) {
-      currentPin.marker.remove()
+    // Remove existing pin via ref to avoid stale closures
+    if (markerRef.current) {
+      markerRef.current.remove()
+      markerRef.current = null
     }
 
     // Create new marker
@@ -112,10 +116,24 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
       .setLngLat(coordinates)
       .addTo(map.current)
 
+    markerRef.current = marker
     const newPin = { coordinates, marker }
     setCurrentPin(newPin)
     onPinChange?.(newPin)
   }
+  
+
+  // Sync with parent-provided coordinates (clear or set)
+  useEffect(() => {
+    if (externalPinCoordinates == null) {
+      if (currentPin) removePin()
+      return
+    }
+    const [lng, lat] = externalPinCoordinates
+    if (!currentPin || currentPin.coordinates[0] !== lng || currentPin.coordinates[1] !== lat) {
+      addPin([lng, lat])
+    }
+  }, [externalPinCoordinates])
 
   useEffect(() => {
     const loadMapbox = async () => {
@@ -181,25 +199,14 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
       if (map.current) {
         map.current.remove()
       }
+      if (markerRef.current) {
+        markerRef.current.remove()
+        markerRef.current = null
+      }
     }
   }, [mapboxLoaded, lng, lat, zoom, mapStyle, onMapReady])
 
-  useEffect(() => {
-    if (!onPinChange) return
-
-    // If parent cleared the pin, remove the marker
-    const handlePinClear = () => {
-      if (currentPin?.marker) {
-        currentPin.marker.remove()
-        setCurrentPin(null)
-      }
-    }
-
-    // Listen for external pin clearing
-    if (!currentPin && onPinChange(null)) {
-      handlePinClear()
-    }
-  }, [currentPin, onPinChange])
+  // (removed faulty effect that invoked onPinChange)
 
   if (tokenError) {
     return (
