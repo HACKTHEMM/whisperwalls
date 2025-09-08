@@ -1,26 +1,76 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Suspense, useState } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { LeftRail } from "@/components/left-rail"
 import { TopSearch } from "@/components/top-search"
 import { SuggestedChips } from "@/components/suggested-chips"
 import { AccountAvatar } from "@/components/account-avatar"
 import PinInfoCard from "@/components/pin-info-card"
 import SavedNotesPanel from "@/components/saved-notes-panel"
+import { useAuth } from "@/lib/auth"
+import { supabase } from "@/lib/supabaseClient"
+import { Auth } from "@supabase/auth-ui-react"
+import { ThemeSupa } from "@supabase/auth-ui-shared"
+import type { Map, Marker } from "mapbox-gl"
 
 const MapView = dynamic(() => import("@/components/map-view"), { ssr: false })
 
 interface PinState {
   coordinates: [number, number]
-  marker?: any
+  marker?: Marker | null
+}
+
+export interface Note {
+  id: number;
+  created_at: string;
+  note: string | null;
+  latitude: number;
+  longitude: number;
+  user_id: string;
 }
 
 export default function Page() {
+  const { session, user } = useAuth()
   const [currentPin, setCurrentPin] = useState<PinState | null>(null)
   const [mapStyle, setMapStyle] = useState("streets-v12")
-  const [mapInstance, setMapInstance] = useState<any>(null)
+  const [mapInstance, setMapInstance] = useState<Map | null>(null)
   const [savedOpen, setSavedOpen] = useState(false)
+  const [notes, setNotes] = useState<Note[]>([])
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchNotes = async () => {
+      const { data, error } = await supabase
+        .from("notes")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching notes:", error);
+      } else {
+        setNotes(data);
+      }
+    };
+
+    fetchNotes();
+
+    const channel = supabase
+      .channel("notes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notes" },
+        (payload) => {
+          fetchNotes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleClearPin = () => {
     setCurrentPin(null)
@@ -34,6 +84,28 @@ export default function Page() {
     }
   }
 
+  const handleDeleteNote = async (id: number) => {
+    const { error } = await supabase.from("notes").delete().eq("id", id);
+    if (error) {
+      console.error("Error deleting note:", error);
+    }
+  };
+
+  if (!session) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="w-full max-w-md p-8">
+          <Auth
+            supabaseClient={supabase}
+            appearance={{ theme: ThemeSupa }}
+            providers={["google", "github"]}
+            socialLayout="horizontal"
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <main className="fixed inset-0 bg-background">
       {/* Map canvas */}
@@ -44,12 +116,14 @@ export default function Page() {
             onMapReady={setMapInstance}
             mapStyle={mapStyle}
             externalPinCoordinates={currentPin?.coordinates ?? null}
+            notes={notes}
+            onNoteDelete={handleDeleteNote}
           />
         </Suspense>
       </div>
 
       {/* Left rail (hidden on small screens) */}
-      <LeftRail onOpenSaved={() => setSavedOpen((v) => !v)} />
+      <LeftRail onOpenSaved={() => setSavedOpen((v) => !v)} onStyleChange={handleStyleChange} />
 
       {/* Saved notes sliding panel */}
       <SavedNotesPanel
@@ -71,11 +145,15 @@ export default function Page() {
       </div>
 
       {/* Bottom-center pin info card */}
-      <PinInfoCard coordinates={currentPin?.coordinates ?? null} />
+      <PinInfoCard
+        coordinates={currentPin?.coordinates ?? null}
+        onSave={handleClearPin}
+        onCancel={handleClearPin}
+      />
 
       {/* Top-right account avatar */}
       <div className="fixed right-4 top-4 z-[1000]">
-        {/* <AccountAvatar /> */}
+        <AccountAvatar />
       </div>
     </main>
   )

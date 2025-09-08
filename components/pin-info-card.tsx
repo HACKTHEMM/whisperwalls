@@ -1,116 +1,70 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-
-const STORAGE_KEY = "pin-notes-v1"
-
-function coordsKey(coords: [number, number]) {
-  const [lng, lat] = coords
-  return `${lat.toFixed(6)},${lng.toFixed(6)}`
-}
-
-function loadNotes(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveNotes(notes: Record<string, string>) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
-    // Notify other parts of the app
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("pin-notes-updated"))
-    }
-  } catch {}
-}
+import { useAuth } from "@/lib/auth"
+import { supabase } from "@/lib/supabaseClient"
 
 interface PinInfoCardProps {
-  coordinates: [number, number] | null
+  coordinates: [number, number] | null;
+  onSave: () => void;
+  onCancel: () => void;
 }
 
-export default function PinInfoCard({ coordinates }: PinInfoCardProps) {
-  const [notes, setNotes] = useState<Record<string, string>>({})
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState("")
-
-  const key = useMemo(() => (coordinates ? coordsKey(coordinates) : null), [coordinates])
-  const note = key ? notes[key] : undefined
-
-  useEffect(() => {
-    setNotes(loadNotes())
-  }, [])
-
-  useEffect(() => {
-    if (!coordinates) {
-      setEditing(false)
-      setDraft("")
-    } else if (key) {
-      setDraft(notes[key] ?? "")
-    }
-  }, [coordinates, key, notes])
+export default function PinInfoCard({ coordinates, onSave, onCancel }: PinInfoCardProps) {
+  const { user } = useAuth()
+  const [note, setNote] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
   if (!coordinates) return null
 
   const [lng, lat] = coordinates
 
-  function startEditing() {
-    setDraft(note ?? "")
-    setEditing(true)
-  }
+  const handleSave = async () => {
+    if (!user || !coordinates) return
 
-  function save() {
-    if (!key) return
-    const next = { ...notes, [key]: draft.trim() }
-    setNotes(next)
-    saveNotes(next)
-    setEditing(false)
-  }
+    setIsSaving(true)
+    const { error } = await supabase.from("notes").insert([
+      {
+        note,
+        latitude: lat,
+        longitude: lng,
+        user_id: user.id,
+      },
+    ])
+    setIsSaving(false)
 
-  function cancel() {
-    setEditing(false)
-    setDraft(note ?? "")
+    if (error) {
+      console.error("Error saving note:", error)
+      // TODO: Show an error message to the user
+    } else {
+      setNote("")
+      onSave()
+    }
   }
 
   return (
     <div className="pointer-events-auto fixed left-1/2 bottom-6 z-[1500] -translate-x-1/2 w-[min(400px,92vw)]">
-      <Card className="mx-auto flex w-full items-center gap-3 rounded-2xl border bg-background/95 p-3 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <Card className="mx-auto flex w-full flex-col gap-3 rounded-2xl border bg-background/95 p-3 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="text-sm text-muted-foreground">Dropped pin</div>
           <div className="truncate text-sm">{lat.toFixed(6)}, {lng.toFixed(6)}</div>
-          {!editing && note && (
-            <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm">{note}</div>
-          )}
-          {editing && (
-            <textarea
-              className="mt-2 w-full resize-y rounded-lg border bg-secondary p-2 text-sm outline-none"
-              placeholder="Add a note for this place..."
-              rows={3}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-          )}
+          <textarea
+            className="mt-2 w-full resize-y rounded-lg border bg-secondary p-2 text-sm outline-none"
+            placeholder="Add a note for this place..."
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
-        {!editing ? (
-          note ? (
-            <Button size="sm" variant="secondary" onClick={startEditing} className="shrink-0">Edit note</Button>
-          ) : (
-            <Button size="sm" onClick={startEditing} className="shrink-0">Add note</Button>
-          )
-        ) : (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={cancel}>Cancel</Button>
-            <Button size="sm" onClick={save}>Save</Button>
-          </div>
-        )}
+        <div className="flex shrink-0 items-center gap-2 self-end">
+          <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button size="sm" onClick={handleSave} disabled={!note.trim() || isSaving}>
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </Card>
     </div>
   )
 }
-
-

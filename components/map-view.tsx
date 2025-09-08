@@ -1,11 +1,13 @@
 "use client"
 
-import { useRef, useEffect, useState, useMemo } from "react"
+import { useRef, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Crosshair, Minus, Plus, Radar } from "lucide-react"
 import LayersMiniCard from "@/components/layersminicard"
 import { Card } from "@/components/ui/card"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import type { Note } from "@/app/page"
+import { useAuth } from "@/lib/auth"
 
 declare global {
   interface Window {
@@ -75,9 +77,12 @@ interface MapViewProps {
   onMapReady?: (map: any) => void
   mapStyle?: string
   externalPinCoordinates?: [number, number] | null
+  notes: Note[]
+  onNoteDelete: (id: number) => void
 }
 
-export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v12", externalPinCoordinates }: MapViewProps) {
+export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v12", externalPinCoordinates, notes, onNoteDelete }: MapViewProps) {
+  const { user } = useAuth()
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<any>(null)
   const markerRef = useRef<any | null>(null)
@@ -85,7 +90,7 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   const [mapboxLoaded, setMapboxLoaded] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [currentPin, setCurrentPin] = useState<PinState | null>(null)
-  const savedMarkersRef = useRef<any[]>([])
+  const noteMarkersRef = useRef<any[]>([])
 
   const [lng] = useState(73.7125)
   const [lat] = useState(24.5854)
@@ -119,13 +124,11 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   const addPin = (coordinates: [number, number]) => {
     if (!map.current || !window.mapboxgl) return
 
-    // Remove existing pin via ref to avoid stale closures
     if (markerRef.current) {
       markerRef.current.remove()
       markerRef.current = null
     }
 
-    // Create new marker
     const marker = new window.mapboxgl.Marker({
       color: "#ef4444", // red color
       draggable: false,
@@ -139,43 +142,34 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
     onPinChange?.(newPin)
   }
 
-  // Utilities to load saved notes and render markers
-  const loadSavedNotes = (): Record<string, string> => {
-    try {
-      const raw = localStorage.getItem("pin-notes-v1")
-      return raw ? JSON.parse(raw) : {}
-    } catch {
-      return {}
-    }
-  }
-
-  const parseKeyToCoords = (key: string): [number, number] | null => {
-    const parts = key.split(",")
-    if (parts.length !== 2) return null
-    const lat = parseFloat(parts[0])
-    const lng = parseFloat(parts[1])
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return null
-    return [lng, lat]
-  }
-
-  const clearSavedMarkers = () => {
-    savedMarkersRef.current.forEach((m) => m.remove())
-    savedMarkersRef.current = []
-  }
-
-  const renderSavedMarkers = () => {
+  useEffect(() => {
     if (!map.current || !window.mapboxgl) return
-    clearSavedMarkers()
-    const notes = loadSavedNotes()
-    Object.keys(notes).forEach((key) => {
-      const coords = parseKeyToCoords(key)
-      if (!coords) return
-      const marker = new window.mapboxgl.Marker({ color: "#22c55e" /* green */ })
-        .setLngLat(coords)
+
+    // Clear existing note markers
+    noteMarkersRef.current.forEach((marker) => marker.remove())
+    noteMarkersRef.current = []
+
+    // Render new note markers
+    notes.forEach((note) => {
+      const isOwnNote = note.user_id === user?.id
+      const popupContent = document.createElement("div")
+      popupContent.innerHTML = `<p>${note.note}</p>`
+      if (isOwnNote) {
+        const deleteButton = document.createElement("button")
+        deleteButton.innerText = "Delete"
+        deleteButton.className = "bg-red-500 text-white px-2 py-1 rounded mt-2"
+        deleteButton.onclick = () => onNoteDelete(note.id)
+        popupContent.appendChild(deleteButton)
+      }
+
+      const marker = new window.mapboxgl.Marker({ color: isOwnNote ? "#22c55e" : "#3b82f6" })
+        .setLngLat([note.longitude, note.latitude])
+        .setPopup(new window.mapboxgl.Popup().setDOMContent(popupContent))
         .addTo(map.current)
-      savedMarkersRef.current.push(marker)
+
+      noteMarkersRef.current.push(marker)
     })
-  }
+  }, [notes, map, user, onNoteDelete])
 
   // Haversine distance in km
   function distanceKm(a: [number, number], b: [number, number]): number {
@@ -242,13 +236,10 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   }
 
   function openNearbyAt(center: [number, number]) {
-    const all = loadSavedNotes()
     const items: Array<{ key: string; note: string; coords: [number, number]; distanceKm: number }> = []
-    Object.entries(all).forEach(([key, note]) => {
-      const coords = parseKeyToCoords(key)
-      if (!coords) return
-      const d = distanceKm(center, coords)
-      if (d <= 1.0) items.push({ key, note, coords, distanceKm: d })
+    notes.forEach((note) => {
+      const d = distanceKm(center, [note.longitude, note.latitude])
+      if (d <= 1.0) items.push({ key: note.id.toString(), note: note.note || "", coords: [note.longitude, note.latitude], distanceKm: d })
     })
     items.sort((a, b) => a.distanceKm - b.distanceKm)
     setNearbyItems(items)
@@ -344,11 +335,6 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
         addPin(coordinates)
       })
 
-      // Render saved markers initially and when notes change
-      renderSavedMarkers()
-      const onNotesUpdated = () => renderSavedMarkers()
-      window.addEventListener("pin-notes-updated", onNotesUpdated)
-
       setMapInstance(map.current)
       onMapReady?.(map.current)
     } catch (error) {
@@ -364,12 +350,10 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
         markerRef.current.remove()
         markerRef.current = null
       }
-      clearSavedMarkers()
-      window.removeEventListener("pin-notes-updated", renderSavedMarkers as any)
+      noteMarkersRef.current.forEach((marker) => marker.remove())
+      noteMarkersRef.current = []
     }
   }, [mapboxLoaded, lng, lat, zoom, mapStyle, onMapReady])
-
-  // (removed faulty effect that invoked onPinChange)
 
   if (tokenError) {
     return (
