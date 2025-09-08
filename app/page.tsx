@@ -6,6 +6,7 @@ import { LeftRail } from "@/components/left-rail"
 import { TopSearch } from "@/components/top-search"
 import { SuggestedChips } from "@/components/suggested-chips"
 import { AccountAvatar } from "@/components/account-avatar"
+import PinInfoCard from "@/components/pin-info-card"
 
 const MapView = dynamic(() => import("@/components/map-view"), { ssr: false })
 
@@ -53,9 +54,12 @@ export default function Page() {
         <SuggestedChips />
       </div>
 
+      {/* Bottom-center pin info card */}
+      <PinInfoCard coordinates={currentPin?.coordinates ?? null} />
+
       {/* Top-right account avatar */}
       <div className="fixed right-4 top-4 z-[1000]">
-        <AccountAvatar />
+        {/* <AccountAvatar /> */}
       </div>
     </main>
   )

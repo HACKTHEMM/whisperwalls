@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Menu, Search, Clock, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-
+import { MobileMenu } from "./mobile-menu"
 type RecentItem = { label: string; sublabel?: string }
 
 const STORAGE_KEY = "recent-searches"
@@ -81,7 +81,7 @@ export function TopSearch({ pinCoordinates, onClearPin }: TopSearchProps) {
       <div ref={wrapperRef} className="relative w-full md:w-[min(640px,92vw)]">
         <div className="flex w-full items-center gap-2 rounded-full bg-background/95 p-1 pl-2 pr-1 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <Button size="icon" variant="ghost" aria-label="Open menu" className="rounded-full">
-            <Menu className="h-5 w-5" />
+            <MobileMenu />
           </Button>
           <Input
             placeholder={pinCoordinates ? "Coordinates" : "Search Maps"}
