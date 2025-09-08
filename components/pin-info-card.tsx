@@ -23,6 +23,10 @@ function loadNotes(): Record<string, string> {
 function saveNotes(notes: Record<string, string>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+    // Notify other parts of the app
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("pin-notes-updated"))
+    }
   } catch {}
 }
 

@@ -7,6 +7,7 @@ import { TopSearch } from "@/components/top-search"
 import { SuggestedChips } from "@/components/suggested-chips"
 import { AccountAvatar } from "@/components/account-avatar"
 import PinInfoCard from "@/components/pin-info-card"
+import SavedNotesPanel from "@/components/saved-notes-panel"
 
 const MapView = dynamic(() => import("@/components/map-view"), { ssr: false })
 
@@ -19,6 +20,7 @@ export default function Page() {
   const [currentPin, setCurrentPin] = useState<PinState | null>(null)
   const [mapStyle, setMapStyle] = useState("streets-v12")
   const [mapInstance, setMapInstance] = useState<any>(null)
+  const [savedOpen, setSavedOpen] = useState(false)
 
   const handleClearPin = () => {
     setCurrentPin(null)
@@ -47,10 +49,24 @@ export default function Page() {
       </div>
 
       {/* Left rail (hidden on small screens) */}
-      <LeftRail />
+      <LeftRail onOpenSaved={() => setSavedOpen((v) => !v)} />
+
+      {/* Saved notes sliding panel */}
+      <SavedNotesPanel
+        open={savedOpen}
+        onClose={() => setSavedOpen(false)}
+        onSelect={(coords) => {
+          // Center the map and set the external pin
+          if (mapInstance) {
+            mapInstance.flyTo({ center: coords, zoom: Math.max(mapInstance.getZoom?.() ?? 12, 14) })
+          }
+          setCurrentPin({ coordinates: coords })
+          setSavedOpen(false)
+        }}
+      />
 
       <div className="pointer-events-none fixed top-4 left-4 right-4 z-[1000] flex max-w-full flex-col gap-3 md:left-24 md:right-auto md:items-start">
-        <TopSearch pinCoordinates={currentPin?.coordinates} onClearPin={handleClearPin} />
+        <TopSearch pinCoordinates={currentPin?.coordinates} onClearPin={handleClearPin} onOpenSaved={() => setSavedOpen(true)} />
         <SuggestedChips />
       </div>
 

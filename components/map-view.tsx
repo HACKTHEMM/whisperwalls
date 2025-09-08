@@ -74,6 +74,7 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   const [mapboxLoaded, setMapboxLoaded] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [currentPin, setCurrentPin] = useState<PinState | null>(null)
+  const savedMarkersRef = useRef<any[]>([])
 
   const [lng] = useState(73.7125)
   const [lat] = useState(24.5854)
@@ -120,6 +121,44 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
     const newPin = { coordinates, marker }
     setCurrentPin(newPin)
     onPinChange?.(newPin)
+  }
+
+  // Utilities to load saved notes and render markers
+  const loadSavedNotes = (): Record<string, string> => {
+    try {
+      const raw = localStorage.getItem("pin-notes-v1")
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
+
+  const parseKeyToCoords = (key: string): [number, number] | null => {
+    const parts = key.split(",")
+    if (parts.length !== 2) return null
+    const lat = parseFloat(parts[0])
+    const lng = parseFloat(parts[1])
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+    return [lng, lat]
+  }
+
+  const clearSavedMarkers = () => {
+    savedMarkersRef.current.forEach((m) => m.remove())
+    savedMarkersRef.current = []
+  }
+
+  const renderSavedMarkers = () => {
+    if (!map.current || !window.mapboxgl) return
+    clearSavedMarkers()
+    const notes = loadSavedNotes()
+    Object.keys(notes).forEach((key) => {
+      const coords = parseKeyToCoords(key)
+      if (!coords) return
+      const marker = new window.mapboxgl.Marker({ color: "#22c55e" /* green */ })
+        .setLngLat(coords)
+        .addTo(map.current)
+      savedMarkersRef.current.push(marker)
+    })
   }
   
 
@@ -188,6 +227,11 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
         addPin(coordinates)
       })
 
+      // Render saved markers initially and when notes change
+      renderSavedMarkers()
+      const onNotesUpdated = () => renderSavedMarkers()
+      window.addEventListener("pin-notes-updated", onNotesUpdated)
+
       setMapInstance(map.current)
       onMapReady?.(map.current)
     } catch (error) {
@@ -203,6 +247,8 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
         markerRef.current.remove()
         markerRef.current = null
       }
+      clearSavedMarkers()
+      window.removeEventListener("pin-notes-updated", renderSavedMarkers as any)
     }
   }, [mapboxLoaded, lng, lat, zoom, mapStyle, onMapReady])
 

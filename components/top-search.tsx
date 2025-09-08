@@ -14,9 +14,10 @@ const STORAGE_KEY = "recent-searches"
 interface TopSearchProps {
   pinCoordinates?: [number, number] | null
   onClearPin?: () => void
+  onOpenSaved?: () => void
 }
 
-export function TopSearch({ pinCoordinates, onClearPin }: TopSearchProps) {
+export function TopSearch({ pinCoordinates, onClearPin, onOpenSaved }: TopSearchProps) {
   const [value, setValue] = useState("")
   const [open, setOpen] = useState(false)
   const [recents, setRecents] = useState<RecentItem[]>([])
@@ -81,7 +82,7 @@ export function TopSearch({ pinCoordinates, onClearPin }: TopSearchProps) {
       <div ref={wrapperRef} className="relative w-full md:w-[min(640px,92vw)]">
         <div className="flex w-full items-center gap-2 rounded-full bg-background/95 p-1 pl-2 pr-1 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <Button size="icon" variant="ghost" aria-label="Open menu" className="rounded-full">
-            <MobileMenu />
+            <MobileMenu onOpenSaved={onOpenSaved} />
           </Button>
           <Input
             placeholder={pinCoordinates ? "Coordinates" : "Search Maps"}

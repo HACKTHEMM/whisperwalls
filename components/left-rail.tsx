@@ -4,14 +4,14 @@ import { Button } from "@/components/ui/button"
 import { Bookmark, Clock, EllipsisVertical, Home } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-export function LeftRail() {
+export function LeftRail({ onOpenSaved }: { onOpenSaved?: () => void }) {
   return (
     <aside className="pointer-events-none fixed left-0 top-0 z-[1000] hidden h-full w-[72px] pl-2 pr-2 pt-3 pb-3 md:block">
       <div className="pointer-events-auto flex h-full w-full flex-col items-center gap-2 rounded-2xl bg-background/90 py-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Home">
           <Home className="h-5 w-5" />
         </Button>
-        <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Saved">
+        <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Saved" onClick={onOpenSaved}>
           <Bookmark className="h-5 w-5" />
         </Button>
         <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Recents">

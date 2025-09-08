@@ -1,10 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { Bookmark, Clock, EllipsisVertical, Home, Menu } from "lucide-react"
 
-export function MobileMenu() {
+export function MobileMenu({ onOpenSaved }: { onOpenSaved?: () => void }) {
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -22,9 +22,11 @@ export function MobileMenu() {
           <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Home">
             <Home className="h-5 w-5" />
           </Button>
-          <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Saved">
-            <Bookmark className="h-5 w-5" />
-          </Button>
+          <SheetClose asChild>
+            <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Saved" onClick={onOpenSaved}>
+              <Bookmark className="h-5 w-5" />
+            </Button>
+          </SheetClose>
           <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Recents">
             <Clock className="h-5 w-5" />
           </Button>
