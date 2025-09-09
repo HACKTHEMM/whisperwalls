@@ -143,33 +143,40 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
   }
 
   useEffect(() => {
-    if (!map.current || !window.mapboxgl) return
+    if (!map.current || !window.mapboxgl) return;
 
     // Clear existing note markers
-    noteMarkersRef.current.forEach((marker) => marker.remove())
-    noteMarkersRef.current = []
+    noteMarkersRef.current.forEach((marker) => marker.remove());
+    noteMarkersRef.current = [];
 
     // Render new note markers
     notes.forEach((note) => {
-      const isOwnNote = note.user_id === user?.id
-      const popupContent = document.createElement("div")
-      popupContent.innerHTML = `<p>${note.note}</p>`
-      if (isOwnNote) {
-        const deleteButton = document.createElement("button")
-        deleteButton.innerText = "Delete"
-        deleteButton.className = "bg-red-500 text-white px-2 py-1 rounded mt-2"
-        deleteButton.onclick = () => onNoteDelete(note.id)
-        popupContent.appendChild(deleteButton)
-      }
+        const isOwnNote = note.user_id === user?.id;
+        const popupContent = document.createElement("div");
+        popupContent.innerHTML = `<p>${note.note}</p>`;
+        if (isOwnNote) {
+            const deleteButton = document.createElement("button");
+            deleteButton.innerText = "Delete";
+            deleteButton.className = "bg-red-500 text-white px-2 py-1 rounded mt-2";
+            deleteButton.onclick = () => onNoteDelete(note.id);
+            popupContent.appendChild(deleteButton);
+        }
 
-      const marker = new window.mapboxgl.Marker({ color: isOwnNote ? "#22c55e" : "#3b82f6" })
-        .setLngLat([note.longitude, note.latitude])
-        .setPopup(new window.mapboxgl.Popup().setDOMContent(popupContent))
-        .addTo(map.current)
+        const marker = new window.mapboxgl.Marker({ color: isOwnNote ? "#22c55e" : "#3b82f6" })
+            .setLngLat([note.longitude, note.latitude])
+            .addTo(map.current);
 
-      noteMarkersRef.current.push(marker)
-    })
-  }, [notes, map, user, onNoteDelete])
+        marker.getElement().addEventListener('click', (e: MouseEvent) => {
+            e.stopPropagation();
+            new window.mapboxgl.Popup()
+                .setLngLat([note.longitude, note.latitude])
+                .setDOMContent(popupContent)
+                .addTo(map.current);
+        });
+
+        noteMarkersRef.current.push(marker);
+    });
+}, [notes, map, user, onNoteDelete]);
 
   // Haversine distance in km
   function distanceKm(a: [number, number], b: [number, number]): number {

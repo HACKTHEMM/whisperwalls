@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth"
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient"
 export function AccountAvatar() {
   const { user } = useAuth()
   const [isMenuVisible, setIsMenuVisible] = useState(false)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -19,11 +20,24 @@ export function AccountAvatar() {
     return email[0].toUpperCase()
   }
 
+  const handleMouseEnter = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+    }
+    setIsMenuVisible(true)
+  }
+
+  const handleMouseLeave = () => {
+    timerRef.current = setTimeout(() => {
+      setIsMenuVisible(false)
+    }, 300) // 300ms delay
+  }
+
   return (
     <div 
       className="relative"
-      onMouseEnter={() => setIsMenuVisible(true)}
-      onMouseLeave={() => setIsMenuVisible(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <Button
         variant="secondary"
