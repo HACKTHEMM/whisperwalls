@@ -16,12 +16,6 @@ export function LeftRail({ onOpenSaved, onStyleChange }: LeftRailProps) {
         <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Streets View" onClick={() => onStyleChange('streets-v12')}>
           <Home className="h-5 w-5" />
         </Button>
-        <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Satellite View" onClick={() => onStyleChange('satellite-v9')}>
-          <Satellite className="h-5 w-5" />
-        </Button>
-        <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Terrain View" onClick={() => onStyleChange('outdoors-v12')}>
-          <Mountain className="h-5 w-5" />
-        </Button>
         <Button size="icon" variant="ghost" className="rounded-xl" aria-label="Saved" onClick={onOpenSaved}>
           <Bookmark className="h-5 w-5" />
         </Button>
