@@ -177,7 +177,7 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
           actions.className = "mt-3 flex items-center justify-end gap-2";
           const deleteButton = document.createElement("button");
           deleteButton.type = "button";
-          deleteButton.className = "inline-flex items-center gap-1 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400";
+          deleteButton.className = "inline-flex items-center gap-1 rounded-sm bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400";
           deleteButton.innerText = "Delete";
           deleteButton.onclick = async () => {
             // Optimistically disable button to prevent double click
