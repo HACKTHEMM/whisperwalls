@@ -11,9 +11,17 @@ interface PinInfoCardProps {
 	coordinates: [number, number] | null;
 	onSave: () => void;
 	onCancel: () => void;
+	onNoteCreated?: (note: {
+		id: number;
+		created_at: string;
+		note: string | null;
+		latitude: number;
+		longitude: number;
+		user_id: string;
+	}) => void;
 }
 
-export default function PinInfoCard({ coordinates, onSave, onCancel }: PinInfoCardProps) {
+export default function PinInfoCard({ coordinates, onSave, onCancel, onNoteCreated }: PinInfoCardProps) {
 	const { user } = useAuth()
 	const [note, setNote] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
@@ -26,23 +34,27 @@ export default function PinInfoCard({ coordinates, onSave, onCancel }: PinInfoCa
 	const handleSave = async () => {
 		if (!user || !coordinates) return
 
-		// Moderation validation before save
-		const moderation = validateNoteForModeration(note)
-		if (!moderation.allowed) {
-			setErrorMsg(moderation.reason || "This note is not allowed.")
+		// Quick client checks first
+		const local = validateNoteForModeration(note)
+		if (!local.allowed) {
+			setErrorMsg(local.reason || "This note is not allowed.")
 			return
 		}
 
 		setErrorMsg(null)
 		setIsSaving(true)
-		const { error } = await supabase.from("notes").insert([
-			{
-				note,
-				latitude: lat,
-				longitude: lng,
-				user_id: user.id,
-			},
-		])
+		const { data, error } = await supabase
+			.from("notes")
+			.insert([
+				{
+					note,
+					latitude: lat,
+					longitude: lng,
+					user_id: user.id,
+				},
+			])
+			.select("*")
+			.single()
 		setIsSaving(false)
 
 		if (error) {
@@ -50,6 +62,9 @@ export default function PinInfoCard({ coordinates, onSave, onCancel }: PinInfoCa
 			setErrorMsg("Failed to save note. Please try again.")
 		} else {
 			setNote("")
+			if (data && onNoteCreated) {
+				onNoteCreated(data as any)
+			}
 			onSave()
 		}
 	}

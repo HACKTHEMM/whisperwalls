@@ -28,9 +28,11 @@ function containsProfanity(text: string): boolean {
 }
 
 function looksLikeGibberish(text: string): boolean {
-	const letters = text.replace(/[^a-zA-Z]/g, "");
+	const letters = text.replace(/[^a-zA-Z\p{Script=Devanagari}]/gu, "");
 	if (letters.length < 6) return false; // short notes can be terse
-	const vowels = (letters.match(/[aeiou]/gi) || []).length;
+	const vowelsLatin = (letters.match(/[aeiou]/gi) || []).length;
+	const vowelsDeva = (letters.match(/[अआइईउऊएऐओऔािीुूेैोौ]/g) || []).length;
+	const vowels = vowelsLatin + vowelsDeva;
 	const ratio = vowels / letters.length;
 	return ratio < 0.18 || ratio > 0.9; // too few or too many vowels
 }
@@ -66,3 +68,4 @@ export function sanitizeNoteForDisplay(note: string): string {
 	const plain = note.replace(/[\r\n\t]+/g, " ").trim();
 	return plain.length > 500 ? plain.slice(0, 500) + "…" : plain;
 }
+// Removed remote AI moderation; only local validation is used

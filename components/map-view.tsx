@@ -154,26 +154,58 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
     notes.forEach((note) => {
         const isOwnNote = note.user_id === user?.id;
 
+        // Build styled popup content
         const popupContent = document.createElement("div");
-        const p = document.createElement("p");
-        p.textContent = sanitizeNoteForDisplay(note.note || "");
-        popupContent.appendChild(p);
+        popupContent.className = "min-w-[220px] max-w-[280px] p-3";
 
+        const coordsRow = document.createElement("div");
+        coordsRow.className = "flex items-center justify-between mb-1";
+        const coordsText = document.createElement("div");
+        coordsText.className = "text-[11px] text-muted-foreground";
+        coordsText.textContent = `${note.latitude.toFixed(6)}, ${note.longitude.toFixed(6)}`;
+        coordsRow.appendChild(coordsText);
+        popupContent.appendChild(coordsRow);
+
+        const noteText = document.createElement("div");
+        noteText.className = "text-sm whitespace-pre-wrap leading-5";
+        noteText.textContent = sanitizeNoteForDisplay(note.note || "");
+        popupContent.appendChild(noteText);
+
+        // Actions row
         if (isOwnNote) {
-            const deleteButton = document.createElement("button");
-            deleteButton.innerText = "Delete";
-            deleteButton.className = "bg-red-500 text-white px-2 py-1 rounded mt-2";
-            deleteButton.onclick = () => onNoteDelete(note.id);
-            popupContent.appendChild(deleteButton);
+          const actions = document.createElement("div");
+          actions.className = "mt-3 flex items-center justify-end gap-2";
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "inline-flex items-center gap-1 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400";
+          deleteButton.innerText = "Delete";
+          deleteButton.onclick = async () => {
+            // Optimistically disable button to prevent double click
+            deleteButton.setAttribute('disabled', 'true');
+            try {
+              await Promise.resolve(onNoteDelete(note.id));
+              // Close popup after deletion request regardless; realtime listener will refresh markers
+              if (popup) {
+                popup.remove();
+              }
+            } finally {
+              // Re-enable just in case popup didn't close
+              deleteButton.removeAttribute('disabled');
+            }
+          };
+          actions.appendChild(deleteButton);
+          popupContent.appendChild(actions);
         }
 
         const marker = new window.mapboxgl.Marker({ color: isOwnNote ? "#22c55e" : "#3b82f6" })
             .setLngLat([note.longitude, note.latitude])
             .addTo(map.current);
 
+        // Reuse a popup instance so we can close it on delete
+        let popup: any | null = null;
         marker.getElement().addEventListener('click', (e: MouseEvent) => {
             e.stopPropagation();
-            new window.mapboxgl.Popup()
+            popup = new window.mapboxgl.Popup({ closeOnClick: true, maxWidth: "320px" })
                 .setLngLat([note.longitude, note.latitude])
                 .setDOMContent(popupContent)
                 .addTo(map.current);

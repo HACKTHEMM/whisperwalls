@@ -84,11 +84,18 @@ export default function Page() {
     }
   }
 
-  const handleDeleteNote = async (id: number) => {
+  const handleDeleteNote = async (id: number): Promise<boolean> => {
+    // Optimistic removal
+    setNotes((prev) => prev.filter((n) => n.id !== id))
     const { error } = await supabase.from("notes").delete().eq("id", id);
     if (error) {
       console.error("Error deleting note:", error);
+      // Fallback: refetch to restore correct state
+      const { data } = await supabase.from("notes").select("*").order("created_at", { ascending: false })
+      if (data) setNotes(data)
+      return false;
     }
+    return true;
   };
 
   if (!session) {
@@ -149,6 +156,9 @@ export default function Page() {
         coordinates={currentPin?.coordinates ?? null}
         onSave={handleClearPin}
         onCancel={handleClearPin}
+        onNoteCreated={(created) => {
+          setNotes((prev) => [created, ...prev])
+        }}
       />
 
       {/* Top-right account avatar */}

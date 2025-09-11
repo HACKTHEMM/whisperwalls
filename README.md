@@ -20,6 +20,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Moderation
+
+Notes added to public pins are moderated before saving.
+
+- Server route: `POST /api/moderate`
+  - Body: `{ "text": string, "languageHint"?: "en" | "hi" }`
+  - Response: `{ "allowed": boolean, "reason": string | null }`
+- The server calls Google Gemini to classify abusive/hate/sexual/self-harm/violence/illegal/spam/gibberish.
+- Client falls back to a lightweight local check if the API fails.
+
+### Environment variables
+
+Set the following in your environment:
+
+```bash
+GEMINI_API_KEY=your_api_key_here
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
