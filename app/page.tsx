@@ -31,7 +31,7 @@ export interface Note {
 }
 
 export default function Page() {
-  const { session, user } = useAuth()
+  const { session, user, isLoading } = useAuth()
   const [currentPin, setCurrentPin] = useState<PinState | null>(null)
   const [mapStyle, setMapStyle] = useState("streets-v12")
   const [mapInstance, setMapInstance] = useState<Map | null>(null)
@@ -97,6 +97,14 @@ export default function Page() {
     }
     return true;
   };
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+      </div>
+    )
+  }
 
   if (!session) {
     return (
