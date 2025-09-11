@@ -35,7 +35,7 @@ export function AccountAvatar() {
 
   return (
     <div 
-      className="relative"
+      className="relative hidden md:block"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
