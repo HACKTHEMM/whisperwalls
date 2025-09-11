@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetTitle } from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bookmark, Clock, EllipsisVertical, Home, Menu } from "lucide-react"
 import { useAuth } from "@/lib/auth"
@@ -31,6 +31,7 @@ export function MobileMenu({ onOpenSaved }: { onOpenSaved?: () => void }) {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-[280px] p-0">
+        <SheetTitle className="sr-only">Mobile Menu</SheetTitle>
         <div className="flex h-full w-full flex-col items-center gap-2 rounded-2xl bg-background/90 py-6 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="mb-2 w-full px-4">
             <div className="flex items-center gap-3 rounded-xl border bg-secondary/50 p-3 mt-5">
