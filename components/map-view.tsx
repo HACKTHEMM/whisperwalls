@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import type { Note } from "@/app/page"
 import { useAuth } from "@/lib/auth"
+import { sanitizeNoteForDisplay } from "@/lib/moderation"
 
 declare global {
   interface Window {
@@ -152,8 +153,12 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
     // Render new note markers
     notes.forEach((note) => {
         const isOwnNote = note.user_id === user?.id;
+
         const popupContent = document.createElement("div");
-        popupContent.innerHTML = `<p>${note.note}</p>`;
+        const p = document.createElement("p");
+        p.textContent = sanitizeNoteForDisplay(note.note || "");
+        popupContent.appendChild(p);
+
         if (isOwnNote) {
             const deleteButton = document.createElement("button");
             deleteButton.innerText = "Delete";
@@ -176,7 +181,7 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
 
         noteMarkersRef.current.push(marker);
     });
-}, [notes, map, user, onNoteDelete]);
+  }, [notes, map, user, onNoteDelete]);
 
   // Haversine distance in km
   function distanceKm(a: [number, number], b: [number, number]): number {
@@ -246,7 +251,7 @@ export default function MapView({ onPinChange, onMapReady, mapStyle = "streets-v
     const items: Array<{ key: string; note: string; coords: [number, number]; distanceKm: number }> = []
     notes.forEach((note) => {
       const d = distanceKm(center, [note.longitude, note.latitude])
-      if (d <= 1.0) items.push({ key: note.id.toString(), note: note.note || "", coords: [note.longitude, note.latitude], distanceKm: d })
+      if (d <= 1.0) items.push({ key: note.id.toString(), note: sanitizeNoteForDisplay(note.note || ""), coords: [note.longitude, note.latitude], distanceKm: d })
     })
     items.sort((a, b) => a.distanceKm - b.distanceKm)
     setNearbyItems(items)

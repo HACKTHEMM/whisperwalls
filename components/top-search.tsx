@@ -81,9 +81,7 @@ export function TopSearch({ pinCoordinates, onClearPin, onOpenSaved }: TopSearch
     <div className="pointer-events-auto">
       <div ref={wrapperRef} className="relative w-full md:w-[min(640px,92vw)]">
         <div className="flex w-full items-center gap-2 rounded-full bg-background/95 p-1 pl-2 pr-1 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/70">
-          <Button size="icon" variant="ghost" aria-label="Open menu" className="rounded-full">
-            <MobileMenu onOpenSaved={onOpenSaved} />
-          </Button>
+          <MobileMenu onOpenSaved={onOpenSaved} />
           <Input
             placeholder={pinCoordinates ? "Coordinates" : "Search Maps"}
             aria-label="Search"

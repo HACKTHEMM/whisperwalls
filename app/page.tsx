@@ -61,7 +61,7 @@ export default function Page() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notes" },
-        (payload) => {
+        () => {
           fetchNotes();
         }
       )
