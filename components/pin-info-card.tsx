@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from "react"
 import { Card } from "@/components/ui/card"
@@ -35,7 +35,7 @@ export default function PinInfoCard({ coordinates, onSave, onCancel, onNoteCreat
 		if (!user || !coordinates) return
 
 		// Quick client checks first
-		const local = validateNoteForModeration(note)
+		const local = await validateNoteForModeration(note)
 		if (!local.allowed) {
 			setErrorMsg(local.reason || "This note is not allowed.")
 			return

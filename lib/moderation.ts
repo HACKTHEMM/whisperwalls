@@ -1,48 +1,61 @@
-// Moderation utilities for validating user-provided notes
+import { GoogleGenAI } from "@google/genai";
 
-// Keep lists small and maintainable; expand over time or swap to API later
-const PROFANE_WORDS = [
-	// Minimal starter set; consider external lists or APIs for production
-	"fuck",
-	"shit",
-	"bitch",
-	"asshole",
-	"bastard",
-	"slut",
-	"whore",
-	"nigger",
-	"faggot",
-	"cunt",
-];
-
-const DISALLOWED_PATTERNS: RegExp[] = [
-	/https?:\/\//i, // links
-	/@\w{2,}/i, // mass tagging/handles
-	/(.)\1{4,}/i, // excessive repeated chars
-	/[\p{So}\p{Sk}]{6,}/u, // excessive symbols/emojis
-];
-
-function containsProfanity(text: string): boolean {
-	const normalized = text.toLowerCase();
-	return PROFANE_WORDS.some((w) => normalized.includes(w));
+if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+  throw new Error('NEXT_PUBLIC_GEMINI_API_KEY environment variable is required');
 }
 
-function looksLikeGibberish(text: string): boolean {
-	const letters = text.replace(/[^a-zA-Z\p{Script=Devanagari}]/gu, "");
-	if (letters.length < 6) return false; // short notes can be terse
-	const vowelsLatin = (letters.match(/[aeiou]/gi) || []).length;
-	const vowelsDeva = (letters.match(/[अआइईउऊएऐओऔािीुूेैोौ]/g) || []).length;
-	const vowels = vowelsLatin + vowelsDeva;
-	const ratio = vowels / letters.length;
-	return ratio < 0.18 || ratio > 0.9; // too few or too many vowels
+const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+
+async function getModerationResult(text: string): Promise<boolean> {
+  try {
+    const prompt = `You are a content moderator. Your task is to determine if the following text contains any harmful content, such as hate speech, harassment, violence, or sexually explicit material.
+Respond with only the word "true" if the text is harmful, and "false" if it is not.
+
+Text to analyze:
+---
+${text}
+---
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    });
+    
+    const responseText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    console.log(`Moderation check for text: "${text.substring(0, 40)}..."`, {
+        responseText,
+    });
+
+    if (responseText) {
+      const result = responseText.trim().toLowerCase();
+      if (result === 'true') {
+        return true;
+      }
+      if (result === 'false') {
+        return false;
+      }
+      console.warn(`Moderation check returned ambiguous response: "${responseText}"`);
+      return true;
+    }
+
+    console.warn('Moderation check returned empty response.');
+    return true;
+
+  } catch (error) {
+    console.error('Moderation API error:', error);
+    return true;
+  }
 }
+
 
 export type ModerationResult = {
 	allowed: boolean;
 	reason?: string;
 };
 
-export function validateNoteForModeration(note: string): ModerationResult {
+export async function validateNoteForModeration(note: string): Promise<ModerationResult> {
 	const trimmed = note.trim();
 
 	if (trimmed.length === 0) {
@@ -51,21 +64,17 @@ export function validateNoteForModeration(note: string): ModerationResult {
 	if (trimmed.length > 500) {
 		return { allowed: false, reason: "Note is too long (max 500 characters)." };
 	}
-	if (containsProfanity(trimmed)) {
-		return { allowed: false, reason: "Please remove offensive language." };
+
+	const isHarmful = await getModerationResult(trimmed);
+
+	if (isHarmful) {
+		return { allowed: false, reason: "This note violates our content policy." };
 	}
-	if (DISALLOWED_PATTERNS.some((re) => re.test(trimmed))) {
-		return { allowed: false, reason: "Links, spam, or repeated characters are not allowed." };
-	}
-	if (looksLikeGibberish(trimmed)) {
-		return { allowed: false, reason: "Note looks cryptic/gibberish. Add more meaningful words." };
-	}
+
 	return { allowed: true };
 }
 
 export function sanitizeNoteForDisplay(note: string): string {
-	// Basic sanitizer: ensure it's plain text and clamp length
-	const plain = note.replace(/[\r\n\t]+/g, " ").trim();
+	const plain = note.replace(/[	]+/g, " ").trim();
 	return plain.length > 500 ? plain.slice(0, 500) + "…" : plain;
 }
-// Removed remote AI moderation; only local validation is used
